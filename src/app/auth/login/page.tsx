@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,11 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import Loader from "@/components/Loader";
+import Image from "next/image";
+import PasswordBlock from "../PasswordBlock";
 
+import { useIsHydrated } from "@/hooks/useIsHydrated";
 import { useNavbar } from "@/hooks/useNavbar";
 import {
   loginEmailPass,
@@ -22,36 +26,26 @@ import {
   loginOAuth_Google
 } from "@/lib/auth";
 import { BaseStates } from "@/lib/states";
+import SkeletonLoginForm from "./SkeletonLoginForm";
 
 export default function LoginForm() {
-  const { setRenderOnlyHome } = useNavbar();
+  const { setRenderOnlyHome, setDefaultShown } = useNavbar();
 
   const router = useRouter();
+  const isHydrated = useIsHydrated();
 
   const [loginData, setLoginData] = useState({
     email: "",
     password: ""
   });
 
-  useEffect(() => {
-    setRenderOnlyHome(true);
-
-    window.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") {
-        handleSubmit();
-      }
-    });
-
-    return () => {
-      setRenderOnlyHome(false);
-    };
-  }, []);
-
-  const redirectToHome = function () {
+  const redirectToHome = useCallback(() => {
     console.log("Redirecting ...");
 
-    setTimeout(router.push.bind(null, "/"), 300);
-  };
+    setTimeout(() => {
+      router.push("/");
+    }, 500);
+  }, [router]);
 
   const handleGoogleOAuth = async function () {
     const loader = toast.loading("Continue on the popup ...");
@@ -91,7 +85,7 @@ export default function LoginForm() {
     }
   };
 
-  const handleSubmit = async function () {
+  const handleSubmit = useCallback(async () => {
     let { email, password } = loginData;
 
     console.log("Form submitted with:", { email, password });
@@ -124,7 +118,7 @@ export default function LoginForm() {
     }
 
     toast.dismiss();
-    const loader = toast.loading("Creating Account ...");
+    const loader = toast.loading("Logging In ...");
 
     const state = await loginEmailPass(email, password);
 
@@ -140,7 +134,23 @@ export default function LoginForm() {
         toast.error("Email or password is incorrect.");
         break;
     }
-  };
+  }, [loginData, redirectToHome]);
+
+  useEffect(() => {
+    setRenderOnlyHome(true);
+    setDefaultShown(false);
+
+    window.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        handleSubmit();
+      }
+    });
+
+    return () => {
+      setRenderOnlyHome(false);
+      setDefaultShown(true);
+    };
+  }, [handleSubmit, setDefaultShown, setRenderOnlyHome]);
 
   return (
     <div className="bg-background flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">
@@ -162,10 +172,12 @@ export default function LoginForm() {
                     variant="outline"
                     className="w-full"
                     onClick={handleGoogleOAuth}>
-                    <img
+                    <Image
                       src="/google.svg"
                       alt="Google Logo"
-                      className="h-4 w-4 mr-2"
+                      className="mr-2"
+                      width={16}
+                      height={16}
                     />
                     Continue with Google
                   </Button>
@@ -173,10 +185,12 @@ export default function LoginForm() {
                     variant="outline"
                     className="w-full"
                     onClick={handleDiscordOAuth}>
-                    <img
+                    <Image
                       src="/discord.svg"
                       alt="Discord Logo"
-                      className="h-4 w-4 mr-2"
+                      className="mr-2"
+                      width={16}
+                      height={16}
                     />
                     Continue with Discord
                   </Button>
@@ -186,59 +200,63 @@ export default function LoginForm() {
                     Or continue with
                   </span>
                 </div>
-                <div className="grid gap-6">
-                  <div className="grid gap-3">
-                    <Label htmlFor="email" className="text-foreground">
-                      Email
-                    </Label>
-                    <Input
-                      name="email"
-                      type="email"
-                      placeholder="m@example.com"
-                      className="bg-input border-border text-foreground placeholder:text-muted-foreground"
-                      onChange={(e) => {
-                        setLoginData((d) => ({
-                          ...d,
-                          email: e.target.value
-                        }));
-                      }}
-                      value={loginData.email}
-                      autoComplete="email"
-                    />
-                  </div>
-                  <div className="grid gap-3">
-                    <div className="flex items-center">
-                      <Label htmlFor="password" className="text-foreground">
-                        Password
+                {isHydrated ? (
+                  <div className="grid gap-6">
+                    <div className="grid gap-3">
+                      <Label htmlFor="email" className="text-foreground">
+                        Email
                       </Label>
-                      <a
-                        href="/auth/forgot"
-                        className="ml-auto text-sm underline-offset-4 hover:underline text-muted-foreground hover:text-foreground">
-                        Forgot your password?
-                      </a>
+                      <Input
+                        name="email"
+                        type="email"
+                        placeholder="m@example.com"
+                        className="bg-input border-border text-foreground placeholder:text-muted-foreground"
+                        onChange={(e) => {
+                          setLoginData((d) => ({
+                            ...d,
+                            email: e.target.value
+                          }));
+                        }}
+                        value={loginData.email}
+                        autoComplete="email"
+                      />
                     </div>
-                    <Input
-                      name="password"
-                      type="password"
-                      className="bg-input border-border text-foreground"
-                      onChange={(e) => {
-                        setLoginData((d) => ({
-                          ...d,
-                          password: e.target.value
-                        }));
-                      }}
-                      value={loginData.password}
-                      autoComplete="current-password"
-                      autoCorrect="off"
-                    />
+                    <div className="grid gap-3">
+                      <div className="flex items-center">
+                        <Label htmlFor="password" className="text-foreground">
+                          Password
+                        </Label>
+                        <a
+                          href="/auth/forgot"
+                          className="ml-auto text-sm underline-offset-4 hover:underline text-muted-foreground hover:text-foreground">
+                          Forgot your password?
+                        </a>
+                      </div>
+                      <PasswordBlock
+                        name="password"
+                        type="password"
+                        className="bg-input border-border text-foreground"
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                          setLoginData((d) => ({
+                            ...d,
+                            password: e.target.value
+                          }));
+                        }}
+                        value={loginData.password}
+                        autoComplete="current-password"
+                        autoCorrect="off"
+                      />
+                    </div>
+                    <Button
+                      type="submit"
+                      className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                      onClick={handleSubmit}>
+                      Login
+                    </Button>
                   </div>
-                  <Button
-                    type="submit"
-                    className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-                    onClick={handleSubmit}>
-                    Login
-                  </Button>
-                </div>
+                ) : (
+                  <SkeletonLoginForm />
+                )}
                 <div className="text-center text-sm text-muted-foreground">
                   Don&apos;t have an account?{" "}
                   <a

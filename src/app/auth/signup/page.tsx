@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -17,16 +17,17 @@ import { Label } from "@/components/ui/label";
 
 import { useNavbar } from "@/hooks/useNavbar";
 import {
-  createUser,
   loginEmailPass,
   loginOAuth_Discord,
   loginOAuth_Google
 } from "@/lib/auth";
+import { newUser } from "@/lib/db/user";
 import { BaseStates } from "@/lib/states";
 import { useRouter } from "next/navigation";
+import PasswordBlock from "../PasswordBlock";
 
 export default function LoginForm() {
-  const { setForcedDisable } = useNavbar();
+  const { setRenderOnlyHome, setDefaultShown } = useNavbar();
 
   const router = useRouter();
 
@@ -37,20 +38,6 @@ export default function LoginForm() {
     password2: ""
   });
 
-  useEffect(() => {
-    setForcedDisable(true);
-
-    window.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") {
-        handleSubmit();
-      }
-    });
-
-    return () => {
-      setForcedDisable(false);
-    };
-  }, []);
-
   const handleGoogleOAuth = function () {
     loginOAuth_Google();
   };
@@ -59,7 +46,7 @@ export default function LoginForm() {
     loginOAuth_Discord();
   };
 
-  const handleSubmit = async function () {
+  const handleSubmit = useCallback(async () => {
     let { name, email, password1, password2 } = userData;
 
     console.log("Form submitted with:", { name, email, password1, password2 });
@@ -119,12 +106,30 @@ export default function LoginForm() {
     toast.dismiss();
     const loader = toast.loading("Logging in...");
 
-    const state1 = await createUser(email, password1, name);
-    const state2 =
-      state1 === BaseStates.SUCCESS
-        ? await loginEmailPass(email, password1)
-        : state1;
+    const state1 = await newUser(email, password1, name);
 
+    if (state1[0]) {
+      toast.dismiss(loader);
+      toast.error(`Error: ${state1[0]}`);
+
+      if (state1[0] === "ALREADY_EXISTS") {
+        toast.info(
+          "Looks like you have an account. Do you want to reset your password instead?",
+          {
+            duration: 10000,
+            action: {
+              label: "Take me there",
+              onClick: () => {
+                router.push("/auth/reset");
+              }
+            }
+          }
+        );
+      }
+      return;
+    }
+
+    const state2 = await loginEmailPass(email, password1);
     toast.dismiss(loader);
 
     switch (state2) {
@@ -134,10 +139,26 @@ export default function LoginForm() {
         break;
       case BaseStates.ERROR:
       default:
-        toast.error("Email or password is incorrect.");
+        toast.error("Something went wrong :(");
         break;
     }
-  };
+  }, [userData, router, setUserData]);
+
+  useEffect(() => {
+    setRenderOnlyHome(true);
+    setDefaultShown(false);
+
+    window.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        handleSubmit();
+      }
+    });
+
+    return () => {
+      setRenderOnlyHome(false);
+      setDefaultShown(true);
+    };
+  }, [handleSubmit, setRenderOnlyHome, setDefaultShown]);
 
   return (
     <div className="bg-background flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">
@@ -159,10 +180,12 @@ export default function LoginForm() {
                     variant="outline"
                     className="w-full"
                     onClick={handleGoogleOAuth}>
-                    <img
+                    <Image
                       src="/google.svg"
                       alt="Google Logo"
-                      className="h-4 w-4 mr-2"
+                      className="mr-2"
+                      width={16}
+                      height={16}
                     />
                     Continue with Google
                   </Button>
@@ -170,10 +193,12 @@ export default function LoginForm() {
                     variant="outline"
                     className="w-full"
                     onClick={handleDiscordOAuth}>
-                    <img
+                    <Image
                       src="/discord.svg"
                       alt="Discord Logo"
-                      className="h-4 w-4 mr-2"
+                      className="mr-2"
+                      width={16}
+                      height={16}
                     />
                     Continue with Discord
                   </Button>
@@ -229,11 +254,11 @@ export default function LoginForm() {
                         Password
                       </Label>
                     </div>
-                    <Input
+                    <PasswordBlock
                       name="password1"
                       type="password"
                       className="bg-input border-border text-foreground"
-                      onChange={(e) => {
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                         setUserData((d) => ({
                           ...d,
                           password1: e.target.value
@@ -250,11 +275,11 @@ export default function LoginForm() {
                         Confirm Password
                       </Label>
                     </div>
-                    <Input
+                    <PasswordBlock
                       name="password1"
                       type="password"
                       className="bg-input border-border text-foreground"
-                      onChange={(e) => {
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                         setUserData((d) => ({
                           ...d,
                           password2: e.target.value

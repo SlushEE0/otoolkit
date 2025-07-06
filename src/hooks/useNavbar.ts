@@ -4,8 +4,9 @@ import { useSyncExternalStore } from "react";
 
 // Global state store
 let navbarState = {
-  forcedDisable: true,
-  renderOnlyHome: false
+  forcedDisable: false,
+  renderOnlyHome: false,
+  defaultToShown: true
 };
 
 const listeners = new Set<() => void>();
@@ -25,23 +26,28 @@ function getSnapshot() {
   return navbarState;
 }
 
+const setForcedDisable = (value: boolean) => {
+  navbarState = { ...navbarState, forcedDisable: value };
+  emitChange();
+};
+
+const setRenderOnlyHome = (value: boolean) => {
+  navbarState = { ...navbarState, renderOnlyHome: value };
+  emitChange();
+};
+
+const setDefaultShown = (value: boolean) => {
+  navbarState = { ...navbarState, defaultToShown: value };
+  emitChange();
+};
+
 export function useNavbar() {
   const state = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
-  const setForcedDisable = (value: boolean) => {
-    navbarState = { ...navbarState, forcedDisable: value };
-    emitChange();
-  };
-
-  const setRenderOnlyHome = (value: boolean) => {
-    navbarState = { ...navbarState, renderOnlyHome: value };
-    emitChange();
-  };
-
   return {
-    forcedDisable: state.forcedDisable,
+    ...state,
     setForcedDisable,
-    renderOnlyHome: state.renderOnlyHome,
-    setRenderOnlyHome
+    setRenderOnlyHome,
+    setDefaultShown
   } as const;
 }
